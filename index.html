@@ -19,15 +19,59 @@
   <body>
     <div class="container" id="content">
       <script type="text/jsx">
+        var db = new Dexie("budget-db");
+        db.version(1).stores({
+            budget: 'month'
+        });
+        db.on('error', function(e) {
+            console.log(e.stack || e);
+        });
+
+        var Budget = db.budget.defineClass({
+          month: String,
+          category: String,
+          budget: String,
+          spent: String
+        });
+        Budget.prototype.init = function(month) {
+          this.month = month;
+          this.budget = '0';
+          this.spent = '0';
+          return this;
+        };
+        Budget.prototype.save = function() {
+          return db.budget.put(this);
+        };
+        Budget.prototype.moment = function() {
+          return moment(this.month, "YYYY-MM");
+        };
+        Budget.prototype.setState = function(state) {
+          // TODO(tirsen): This could be a bit more clever.
+          this.budget = state.budget;
+          this.spent = state.spent;
+
+          var budget = parseFloat(this.budget);
+          var spent = parseFloat(this.spent);
+
+          var daysInMonth = this.moment().daysInMonth();
+          this.daysIn = moment().date();
+
+          this.budgetPerDay = Math.round(budget / daysInMonth);
+          this.spentPerDay = Math.round(spent / this.daysIn);
+          this.daysLeft = daysInMonth - this.daysIn;
+          this.leftPerDay = Math.round((budget - spent) / this.daysLeft);
+
+          return this.save();
+        };
+
         var BudgetApp = React.createClass({
           mixins: [React.addons.LinkedStateMixin],
           getInitialState: function() {
-            return {budget: 0, spent: 0};
+            return {budget: this.props.budget.budget, spent:this.props.budget.spent};
           },
           render: function() {
-            var budgetPerDay = parseFloat(this.state.budget) / 30;
-            var daysIn = 4;
-            var spentPerDay = parseFloat(this.state.spent) / daysIn;
+            this.props.budget.setState({budget: this.state.budget, spent: this.state.spent});
+
             return (
               <form className="form-horizontal">
                 <div className="form-group">
@@ -37,7 +81,7 @@
                 <div className="form-group">
                   <label htmlFor="budgetPerDay" className="col-sm-6">Original budget per day</label>
                   <div className="col-sm-6">
-                    <input type="number" className="form-control" id="budgetPerDay" placeholder="0" readOnly="true" value={budgetPerDay} />
+                    <input type="number" className="form-control" id="budgetPerDay" placeholder="0" readOnly="true" value={this.props.budget.budgetPerDay} />
                   </div>
                 </div>
                 <div className="form-group">
@@ -47,31 +91,52 @@
                 <div className="form-group">
                   <label htmlFor="daysIn" className="col-sm-3">Days in</label>
                   <div className="col-sm-3">
-                    <input type="number" className="form-control" id="daysIn" placeholder="0" readOnly="true" value={daysIn} />
+                    <input type="number" className="form-control" id="daysIn" placeholder="0" readOnly="true" value={this.props.budget.daysIn} />
                   </div>
                   <label htmlFor="daysLeft" className="col-sm-3">Days left</label>
                   <div className="col-sm-3">
-                    <input type="number" className="form-control" id="daysLeft" placeholder="0" readOnly="true"/>
+                    <input type="number" className="form-control" id="daysLeft" placeholder="0" readOnly="true" value={this.props.budget.daysLeft} />
                   </div>
                 </div>
                 <div className="form-group">
                   <label htmlFor="spentPerDay" className="col-sm-3">Spent per day</label>
                   <div className="col-sm-3">
-                    <input type="number" className="form-control" id="spentPerDay" placeholder="0" readOnly="true" value={spentPerDay} />
+                    <input type="number" className="form-control" id="spentPerDay" placeholder="0" readOnly="true" value={this.props.budget.spentPerDay} />
                   </div>
                   <label htmlFor="leftPerDay" className="col-sm-3">Left per day</label>
                   <div className="col-sm-3">
-                    <input type="number" className="form-control" id="leftPerDay" placeholder="0" readOnly="true"/>
+                    <input type="number" className="form-control" id="leftPerDay" placeholder="0" readOnly="true" value={this.props.budget.leftPerDay} />
                   </div>
                 </div>
               </form>
             );
           }
         });
-        React.render(
-          <BudgetApp/>,
-          document.getElementById('content')
-        );
+
+        db.open().then(function() {
+          var now = moment();
+          var month = now.format('YYYY-MM');
+          var budgetCollection = db.budget.where('month').equals(month);
+          budgetCollection.count(function(count) {
+            var budgetPromise;
+            if (count >= 1) {
+              budgetPromise = budgetCollection.first();
+            } else {
+              budgetPromise = new Promise(function (resolve, reject) {
+                var budget = new Budget().init(month);
+                resolve(budget);
+              });
+            }
+            budgetPromise.then(function (budget) {
+              React.render(
+                <BudgetApp budget={budget} />,
+                document.getElementById('content')
+              );
+            })
+          });
+        }).catch(function(e) {
+            console.log(e.stack || e);
+        });
       </script>
     </div>
 
@@ -79,6 +144,8 @@
     <script src="bower_components/jquery/dist/jquery.min.js"></script>
     <!-- Include all compiled plugins (below), or include individual files as needed -->
     <script src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="bower_components/moment/min/moment.min.js"></script>
+    <script src="bower_components/dexie/dist/latest/Dexie.js"></script>
 
     <script src="bower_components/react/react-with-addons.js"></script>
     <script src="bower_components/react/JSXTransformer.js"></script>
