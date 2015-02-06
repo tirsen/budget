@@ -1,0 +1,21 @@
+{
+  "name": "budget",
+  "version": "0.0.0",
+  "homepage": "https://github.com/tirsen/budget",
+  "authors": [
+    "Jon Tirsen <jon@tirsen.com>"
+  ],
+  "license": "GPLv2",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "~3.3.2",
+    "react": "~0.12.2"
+  }
+}
